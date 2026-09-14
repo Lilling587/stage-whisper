@@ -31,7 +31,7 @@ Eftersom varje dator lyssnar på sin egen mikrofon blir talarmärkningen tillfö
 
 - Svensk igenkänning är bra men inte perfekt, särskilt med scenslang och namn. Texten är ett stöd, inte en ersättning för intercom.
 - Fördröjningen blir typiskt någon sekund efter att en mening avslutats.
-- Kräver internet på båda datorerna.
+- **Kräver internetuppkoppling på båda datorerna.** Hela kedjan är molnberoende: appen laddas från webben, transkriberingen sker i en AI-tjänst online, och texten synkas mellan skärmarna via molnet. En helt offline-lösning skulle kräva igenkänning direkt i webbläsaren (sämre svensk kvalitet, tungt för datorn) och en lokal server på plats för att koppla ihop skärmarna — det är en större och mer skör lösning som ligger utanför vad som är rimligt att bygga här. Om scenen saknar internet räcker ett vanligt 4G/5G-uppkopplat nätverk; datamängden är liten (bara röstljud).
 
 ## Steg
 
