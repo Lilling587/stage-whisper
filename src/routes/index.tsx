@@ -61,7 +61,8 @@ function Index() {
   const [connected, setConnected] = useState(false);
   const [fontScale, setFontScale] = useState(1);
 
-  const captureRef = useRef<AudioCapture | null>(null);
+    const captureRef = useRef<AudioCapture | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const queueRef = useRef<Promise<void>>(Promise.resolve());
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -117,6 +118,13 @@ function Index() {
         const line = payload as Line;
         if (line && typeof line.id === "string") upsertLine(line);
       })
+            })
+      .on("broadcast", { event: "remove" }, ({ payload }) => {
+        const { id } = payload as { id?: string };
+        if (typeof id === "string") {
+          setLines((prev) => prev.filter((l) => l.id !== id));
+        }
+      })
       .on("broadcast", { event: "clear" }, () => setLines([]))
       .subscribe((status) => {
         setConnected(status === "SUBSCRIBED");
@@ -152,32 +160,40 @@ function Index() {
       // Serialize uploads so lines stay in order
       queueRef.current = queueRef.current.then(async () => {
         try {
-          const text = await transcribeSegment(wav, (partial) => {
-            publishLine({ ...line, text: partial || "…" });
-          });
+                    const text = await transcribeSegment(
+            wav,
+            (partial) => {
+              publishLine({ ...line, text: partial || "…" });
+            },
+            abortRef.current?.signal,
+          );
           if (text) {
             publishLine({ ...line, text, final: true });
           } else {
-            // Nothing recognized — remove the placeholder line
+            // Nothing recognized — remove the placeholder line everywhere
             setLines((prev) => prev.filter((l) => l.id !== id));
-            broadcast("line", { ...line, text: "", final: true });
+            broadcast("remove", { id });
           }
         } catch (err) {
           setLines((prev) => prev.filter((l) => l.id !== id));
-          broadcast("line", { ...line, text: "", final: true });
-          setError(
-            err instanceof Error
-              ? err.message
-              : "Transkriberingen misslyckades.",
-          );
+          broadcast("remove", { id });
+          const aborted = err instanceof DOMException && err.name === "AbortError";
+          if (!aborted) {
+            setError(
+              err instanceof Error
+                ? err.message
+                : "Transkriberingen misslyckades.",
+            );
+          }
         }
       });
     },
     [role, publishLine, broadcast],
   );
 
-  const startListening = useCallback(async () => {
+   const startListening = useCallback(async () => {
     setError(null);
+    abortRef.current = new AbortController();
     const capture = new AudioCapture();
     captureRef.current = capture;
     await capture.start({
@@ -198,15 +214,18 @@ function Index() {
     setListening(true);
   }, [deviceId, handleSegment]);
 
-  const stopListening = useCallback(async () => {
+   const stopListening = useCallback(async () => {
     setListening(false);
     setLevel(0);
+    abortRef.current?.abort();
+    abortRef.current = null;
     await captureRef.current?.stop();
     captureRef.current = null;
   }, []);
 
-  useEffect(() => {
+    useEffect(() => {
     return () => {
+      abortRef.current?.abort();
       void captureRef.current?.stop();
     };
   }, []);
