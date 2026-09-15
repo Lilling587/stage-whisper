@@ -71,7 +71,8 @@ export class AudioCapture {
   private stream: MediaStream | null = null;
   private ctx: AudioContext | null = null;
   private node: ScriptProcessorNode | null = null;
-  private source: MediaStreamAudioSourceNode | null = null;
+   private source: MediaStreamAudioSourceNode | null = null;
+  private silentGain: GainNode | null = null;
 
   private chunks: Float32Array[] = [];
   private speechMs = 0;
@@ -167,16 +168,23 @@ export class AudioCapture {
       }
     };
 
+        const silentGain = ctx.createGain();
+    silentGain.gain.value = 0;
+    this.silentGain = silentGain;
+
     source.connect(node);
-    node.connect(ctx.destination);
+    node.connect(silentGain);
+    silentGain.connect(ctx.destination);
   }
 
   async stop(): Promise<void> {
-    this.node?.disconnect();
+        this.node?.disconnect();
+    this.silentGain?.disconnect();
     this.source?.disconnect();
     this.stream?.getTracks().forEach((t) => t.stop());
     if (this.ctx) await this.ctx.close().catch(() => undefined);
-    this.node = null;
+        this.node = null;
+    this.silentGain = null;
     this.source = null;
     this.stream = null;
     this.ctx = null;
