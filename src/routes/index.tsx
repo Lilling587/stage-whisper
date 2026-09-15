@@ -118,7 +118,6 @@ function Index() {
         const line = payload as Line;
         if (line && typeof line.id === "string") upsertLine(line);
       })
-            })
       .on("broadcast", { event: "remove" }, ({ payload }) => {
         const { id } = payload as { id?: string };
         if (typeof id === "string") {
