@@ -36,19 +36,31 @@ function post(message: unknown) {
   (self as unknown as DedicatedWorkerGlobalScope).postMessage(message);
 }
 
+// Delarna laddas var för sig i stället för via pipeline(), eftersom
+// pipeline() frågar modellnavet på nätet efter vilka filer som finns.
 async function getPipeline(): Promise<AutomaticSpeechRecognitionPipeline> {
   if (asr) return asr;
   if (!loading) {
-    loading = pipeline("automatic-speech-recognition", MODEL_ID, {
-      dtype: "q8",
-      progress_callback: (progress: unknown) => {
-        const p = progress as { status?: string; progress?: number };
-        if (p.status === "progress" && typeof p.progress === "number") {
-          post({ type: "progress", progress: p.progress });
-        }
-      },
-    }).then((p) => {
-      asr = p as AutomaticSpeechRecognitionPipeline;
+    const progress_callback = (progress: unknown) => {
+      const p = progress as { status?: string; progress?: number };
+      if (p.status === "progress" && typeof p.progress === "number") {
+        post({ type: "progress", progress: p.progress });
+      }
+    };
+    loading = Promise.all([
+      AutoTokenizer.from_pretrained(MODEL_ID, { progress_callback }),
+      AutoProcessor.from_pretrained(MODEL_ID, { progress_callback }),
+      WhisperForConditionalGeneration.from_pretrained(MODEL_ID, {
+        dtype: "q8",
+        progress_callback,
+      }),
+    ]).then(([tokenizer, processor, model]) => {
+      asr = new AutomaticSpeechRecognitionPipeline({
+        task: "automatic-speech-recognition",
+        model,
+        tokenizer,
+        processor,
+      } as never);
       post({ type: "ready" });
       return asr;
     });
