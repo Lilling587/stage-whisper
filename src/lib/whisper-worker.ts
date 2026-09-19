@@ -4,8 +4,13 @@
  * The model is downloaded once and then cached by the browser, so later
  * shows work without any internet connection.
  */
-import { pipeline, env } from "@huggingface/transformers";
-import type { AutomaticSpeechRecognitionPipeline } from "@huggingface/transformers";
+import {
+  env,
+  AutoProcessor,
+  AutoTokenizer,
+  WhisperForConditionalGeneration,
+  AutomaticSpeechRecognitionPipeline,
+} from "@huggingface/transformers";
 
 // I skrivbordsversionen ligger modellen inbyggd i programmet, så inget
 // behöver hämtas från nätet. I webbversionen hämtas den en gång och cachas.
