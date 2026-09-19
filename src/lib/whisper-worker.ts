@@ -19,7 +19,9 @@ const BUNDLED = import.meta.env["VITE_BUNDLED_MODEL"] === "1";
 if (BUNDLED) {
   env.allowLocalModels = true;
   env.allowRemoteModels = false;
-  env.localModelPath = `${self.location.origin}/models/`;
+  // Relativ sökväg (inte full adress) så att biblioteket behandlar filerna
+  // som lokala och aldrig försöker kontrollera dem mot nätet.
+  env.localModelPath = "/models/";
   if (env.backends?.onnx?.wasm) {
     env.backends.onnx.wasm.wasmPaths = `${self.location.origin}/ort/`;
   }
