@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "build:desktop": "vite build --config desktop/vite.config.ts"
+    "fetch:model": "node scripts/fetch-model.mjs",
+    "build:desktop": "node scripts/fetch-model.mjs && VITE_BUNDLED_MODEL=1 vite build --config desktop/vite.config.ts"
   },
   "overrides": {
     "rolldown": "1.2.1"
