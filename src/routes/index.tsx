@@ -306,7 +306,9 @@ function Index() {
             ut på båda skärmarna. Ingenting sparas.
           </p>
 
-                      <input
+          <label className="mt-6 block text-sm font-medium text-foreground">
+            Rumsnamn
+            <input
               value={room}
               onChange={(e) => setRoom(e.target.value)}
               onKeyDown={(e) => {
