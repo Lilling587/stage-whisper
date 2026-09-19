@@ -9,7 +9,8 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "build:desktop": "vite build --config desktop/vite.config.ts"
   },
   "overrides": {
     "rolldown": "1.2.1"
@@ -89,5 +90,6 @@
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.56.1",
     "vite": "8.1.5"
-  }
+  },
+  "main": "electron/main.cjs"
 }
