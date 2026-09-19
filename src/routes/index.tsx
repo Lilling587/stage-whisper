@@ -61,8 +61,9 @@ function Index() {
   const [connected, setConnected] = useState(false);
   const [fontScale, setFontScale] = useState(1);
 
-    const captureRef = useRef<AudioCapture | null>(null);
+        const captureRef = useRef<AudioCapture | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const queueRef = useRef<Promise<void>>(Promise.resolve());
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -190,7 +191,8 @@ function Index() {
     [role, publishLine, broadcast],
   );
 
-   const startListening = useCallback(async () => {
+      const startListening = useCallback(async () => {
+    if (captureRef.current) return;
     setError(null);
     abortRef.current = new AbortController();
     const capture = new AudioCapture();
@@ -209,31 +211,59 @@ function Index() {
         setError(message);
         setListening(false);
       },
-    });
+        });
     setListening(true);
+    try {
+      wakeLockRef.current = await navigator.wakeLock?.request("screen");
+    } catch {
+      // Not supported in this browser, or the tab wasn't visible at the
+      // moment we asked — not critical, the visibility watcher below
+      // will retry once the tab is visible.
+    }
   }, [deviceId, handleSegment]);
 
-   const stopListening = useCallback(async () => {
+      const stopListening = useCallback(async () => {
     setListening(false);
     setLevel(0);
     abortRef.current?.abort();
     abortRef.current = null;
+    void wakeLockRef.current?.release();
+    wakeLockRef.current = null;
     await captureRef.current?.stop();
     captureRef.current = null;
   }, []);
 
-    useEffect(() => {
+        useEffect(() => {
     return () => {
       abortRef.current?.abort();
+      void wakeLockRef.current?.release();
       void captureRef.current?.stop();
     };
   }, []);
 
-  // Auto-scroll to newest line
+    // Auto-scroll to newest line
   useEffect(() => {
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [lines]);
+
+  // The Wake Lock API releases itself whenever the tab is hidden (e.g. you
+  // alt-tab away for a second). Re-acquire it automatically once it's
+  // visible again, so the screen doesn't quietly go dark mid-show.
+  useEffect(() => {
+    const reacquire = () => {
+      if (listening && document.visibilityState === "visible" && !wakeLockRef.current) {
+        void navigator.wakeLock
+          ?.request("screen")
+          .then((lock) => {
+            wakeLockRef.current = lock;
+          })
+          .catch(() => undefined);
+      }
+    };
+    document.addEventListener("visibilitychange", reacquire);
+    return () => document.removeEventListener("visibilitychange", reacquire);
+  }, [listening]);
 
   const clearLines = useCallback(() => {
     setLines([]);
@@ -276,11 +306,12 @@ function Index() {
             ut på båda skärmarna. Ingenting sparas.
           </p>
 
-          <label className="mt-6 block text-sm font-medium text-foreground">
-            Rum (t.ex. föreställningens namn)
-            <input
+                      <input
               value={room}
               onChange={(e) => setRoom(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") start();
+              }}
               placeholder="Forestallning-14-sep"
               className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring"
             />
