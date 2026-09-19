@@ -1,8 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { AudioCapture } from "@/lib/audio-capture";
-import { transcribeSegment } from "@/lib/transcribe-client";
+import { LocalTranscriber } from "@/lib/local-transcriber";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -11,13 +10,16 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Skriver om intercomsamtal mellan FOH och scen till svensk text i realtid, visat i stor stil på båda skärmarna.",
+          "Skriver om intercomsamtal till svensk text i realtid, direkt i datorn utan moln, visat i stor stil på skärmen.",
       },
-      { property: "og:title", content: "Intercomtext — live-textning mellan FOH och scen" },
+      {
+        property: "og:title",
+        content: "Intercomtext — live-textning mellan FOH och scen",
+      },
       {
         property: "og:description",
         content:
-          "Skriver om intercomsamtal mellan FOH och scen till svensk text i realtid, visat i stor stil på båda skärmarna.",
+          "Skriver om intercomsamtal till svensk text i realtid, direkt i datorn utan moln, visat i stor stil på skärmen.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -48,7 +50,6 @@ function loadSetting(key: string): string | null {
 }
 
 export function Index() {
-  const [room, setRoom] = useState("");
   const [role, setRole] = useState<Role | null>(null);
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [deviceId, setDeviceId] = useState<string>("");
@@ -58,23 +59,24 @@ export function Index() {
   const [level, setLevel] = useState(0);
   const [lines, setLines] = useState<Line[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [connected, setConnected] = useState(false);
   const [fontScale, setFontScale] = useState(1);
+  const [modelStatus, setModelStatus] = useState<
+    "idle" | "loading" | "ready" | "error"
+  >("idle");
+  const [modelProgress, setModelProgress] = useState(0);
 
-        const captureRef = useRef<AudioCapture | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
+  const captureRef = useRef<AudioCapture | null>(null);
+  const transcriberRef = useRef<LocalTranscriber | null>(null);
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
-  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const queueRef = useRef<Promise<void>>(Promise.resolve());
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const levelThrottleRef = useRef(0);
+  const stoppedRef = useRef(false);
 
   // Restore previous choices after hydration
   useEffect(() => {
-    const savedRoom = loadSetting("intercomtext:room");
     const savedRole = loadSetting("intercomtext:role");
     const savedDevice = loadSetting("intercomtext:device");
-    if (savedRoom) setRoom(savedRoom);
     if (savedRole === "foh" || savedRole === "scen") setRole(savedRole);
     if (savedDevice) setDeviceId(savedDevice);
   }, []);
@@ -110,91 +112,67 @@ export function Index() {
     });
   }, []);
 
-  // Realtime channel per room
+  // Load the speech model into this computer as soon as the screen opens.
   useEffect(() => {
-    if (!started || !room.trim()) return;
-    const channel = supabase.channel(`intercomtext-${room.trim().toLowerCase()}`);
-    channel
-      .on("broadcast", { event: "line" }, ({ payload }) => {
-        const line = payload as Line;
-        if (line && typeof line.id === "string") upsertLine(line);
-      })
-      .on("broadcast", { event: "remove" }, ({ payload }) => {
-        const { id } = payload as { id?: string };
-        if (typeof id === "string") {
-          setLines((prev) => prev.filter((l) => l.id !== id));
-        }
-      })
-      .on("broadcast", { event: "clear" }, () => setLines([]))
-      .subscribe((status) => {
-        setConnected(status === "SUBSCRIBED");
-      });
-    channelRef.current = channel;
-    return () => {
-      supabase.removeChannel(channel);
-      channelRef.current = null;
-      setConnected(false);
+    if (!started) return;
+    const transcriber = new LocalTranscriber();
+    transcriber.onStatus = (status, progress, message) => {
+      setModelStatus(status);
+      setModelProgress(progress);
+      if (status === "error" && message) setError(message);
     };
-  }, [started, room, upsertLine]);
-
-  const broadcast = useCallback((event: string, payload: unknown) => {
-    channelRef.current?.send({ type: "broadcast", event, payload });
-  }, []);
-
-  const publishLine = useCallback(
-    (line: Line) => {
-      upsertLine(line);
-      broadcast("line", line);
-    },
-    [upsertLine, broadcast],
-  );
+    transcriberRef.current = transcriber;
+    transcriber.load();
+    return () => {
+      transcriber.dispose();
+      transcriberRef.current = null;
+    };
+  }, [started]);
 
   const handleSegment = useCallback(
-    (wav: Blob) => {
-      if (!role) return;
+    (pcm: Float32Array) => {
+      const transcriber = transcriberRef.current;
+      if (!role || !transcriber) return;
       const currentRole = role;
       const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      const line: Line = { id, role: currentRole, text: "…", final: false, ts: Date.now() };
-      publishLine(line);
+      const line: Line = {
+        id,
+        role: currentRole,
+        text: "…",
+        final: false,
+        ts: Date.now(),
+      };
+      upsertLine(line);
 
-      // Serialize uploads so lines stay in order
+      // Serialize recognition so lines stay in order
       queueRef.current = queueRef.current.then(async () => {
         try {
-                    const text = await transcribeSegment(
-            wav,
-            (partial) => {
-              publishLine({ ...line, text: partial || "…" });
-            },
-            abortRef.current?.signal,
-          );
-          if (text) {
-            publishLine({ ...line, text, final: true });
-          } else {
-            // Nothing recognized — remove the placeholder line everywhere
+          const text = await transcriber.transcribe(pcm);
+          if (stoppedRef.current) {
             setLines((prev) => prev.filter((l) => l.id !== id));
-            broadcast("remove", { id });
+            return;
+          }
+          if (text) {
+            upsertLine({ ...line, text, final: true });
+          } else {
+            setLines((prev) => prev.filter((l) => l.id !== id));
           }
         } catch (err) {
           setLines((prev) => prev.filter((l) => l.id !== id));
-          broadcast("remove", { id });
-          const aborted = err instanceof DOMException && err.name === "AbortError";
-          if (!aborted) {
-            setError(
-              err instanceof Error
-                ? err.message
-                : "Transkriberingen misslyckades.",
-            );
-          }
+          setError(
+            err instanceof Error ? err.message : "Igenkänningen misslyckades.",
+          );
         }
       });
     },
-    [role, publishLine, broadcast],
+    [role, upsertLine],
   );
 
-      const startListening = useCallback(async () => {
+  const startListening = useCallback(async () => {
     if (captureRef.current) return;
     setError(null);
-    abortRef.current = new AbortController();
+    stoppedRef.current = false;
+    transcriberRef.current?.load();
     const capture = new AudioCapture();
     captureRef.current = capture;
     await capture.start({
@@ -211,37 +189,34 @@ export function Index() {
         setError(message);
         setListening(false);
       },
-        });
+    });
     setListening(true);
     try {
       wakeLockRef.current = await navigator.wakeLock?.request("screen");
     } catch {
       // Not supported in this browser, or the tab wasn't visible at the
-      // moment we asked — not critical, the visibility watcher below
-      // will retry once the tab is visible.
+      // moment we asked — the visibility watcher below retries later.
     }
   }, [deviceId, handleSegment]);
 
-      const stopListening = useCallback(async () => {
+  const stopListening = useCallback(async () => {
+    stoppedRef.current = true;
     setListening(false);
     setLevel(0);
-    abortRef.current?.abort();
-    abortRef.current = null;
     void wakeLockRef.current?.release();
     wakeLockRef.current = null;
     await captureRef.current?.stop();
     captureRef.current = null;
   }, []);
 
-        useEffect(() => {
+  useEffect(() => {
     return () => {
-      abortRef.current?.abort();
       void wakeLockRef.current?.release();
       void captureRef.current?.stop();
     };
   }, []);
 
-    // Auto-scroll to newest line
+  // Auto-scroll to newest line
   useEffect(() => {
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
@@ -252,7 +227,11 @@ export function Index() {
   // visible again, so the screen doesn't quietly go dark mid-show.
   useEffect(() => {
     const reacquire = () => {
-      if (listening && document.visibilityState === "visible" && !wakeLockRef.current) {
+      if (
+        listening &&
+        document.visibilityState === "visible" &&
+        !wakeLockRef.current
+      ) {
         void navigator.wakeLock
           ?.request("screen")
           .then((lock) => {
@@ -265,10 +244,7 @@ export function Index() {
     return () => document.removeEventListener("visibilitychange", reacquire);
   }, [listening]);
 
-  const clearLines = useCallback(() => {
-    setLines([]);
-    broadcast("clear", {});
-  }, [broadcast]);
+  const clearLines = useCallback(() => setLines([]), []);
 
   const toggleFullscreen = useCallback(() => {
     if (document.fullscreenElement) {
@@ -279,16 +255,15 @@ export function Index() {
   }, []);
 
   const start = useCallback(() => {
-    if (!room.trim() || !role) return;
+    if (!role) return;
     try {
-      window.localStorage.setItem("intercomtext:room", room.trim());
       window.localStorage.setItem("intercomtext:role", role);
       if (deviceId) window.localStorage.setItem("intercomtext:device", deviceId);
     } catch {
       // ignore
     }
     setStarted(true);
-  }, [room, role, deviceId]);
+  }, [role, deviceId]);
 
   // ---------- Setup screen ----------
   if (!started) {
@@ -302,24 +277,11 @@ export function Index() {
             Live-textning av intercom
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Öppna samma rum på FOH-datorn och scendatorn. Allt som sägs skrivs
-            ut på båda skärmarna. Ingenting sparas.
+            Talet skrivs om till text direkt i den här datorn. Ljudet lämnar
+            aldrig datorn och ingenting sparas.
           </p>
 
-          <label className="mt-6 block text-sm font-medium text-foreground">
-            Rumsnamn
-            <input
-              value={room}
-              onChange={(e) => setRoom(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") start();
-              }}
-              placeholder="Forestallning-14-sep"
-              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring"
-            />
-          </label>
-
-          <fieldset className="mt-5">
+          <fieldset className="mt-6">
             <legend className="text-sm font-medium text-foreground">
               Den här datorn står vid
             </legend>
@@ -359,14 +321,18 @@ export function Index() {
             </select>
           </label>
           <p className="mt-2 text-xs text-muted-foreground">
-            Välj den ingång där intercomljudet kommer in. Webbbläsaren frågar om
+            Välj den ingång där intercomljudet kommer in. Webbläsaren frågar om
             behörighet när du startar lyssningen.
+          </p>
+          <p className="mt-4 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+            Första gången hämtas talmodellen en gång (cirka 250 MB) och sparas i
+            datorn. Därefter fungerar textningen helt utan internet.
           </p>
 
           <button
             type="button"
             onClick={start}
-            disabled={!room.trim() || !role}
+            disabled={!role}
             className="mt-6 w-full rounded-lg bg-primary px-4 py-3 text-lg font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
           >
             Öppna skärmen
@@ -379,6 +345,14 @@ export function Index() {
   // ---------- Screen view ----------
   const visible = lines.filter((l) => l.text);
   const lastIndex = visible.length - 1;
+  const modelLabel =
+    modelStatus === "ready"
+      ? "Talmodell klar"
+      : modelStatus === "loading"
+        ? `Hämtar talmodell ${modelProgress} %`
+        : modelStatus === "error"
+          ? "Talmodell saknas"
+          : "Talmodell väntar";
 
   return (
     <main className="flex h-screen flex-col bg-background">
@@ -454,7 +428,6 @@ export function Index() {
         >
           {role ? ROLE_LABEL[role] : ""}
         </span>
-        <span className="text-xs text-muted-foreground">Rum: {room}</span>
 
         {/* Level meter */}
         <div className="h-2 w-24 overflow-hidden rounded-full bg-muted">
@@ -475,10 +448,14 @@ export function Index() {
         <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <span
             className={`inline-block h-2 w-2 rounded-full ${
-              connected ? "bg-green-400" : "bg-destructive"
+              modelStatus === "ready"
+                ? "bg-green-400"
+                : modelStatus === "error"
+                  ? "bg-destructive"
+                  : "bg-amber-400"
             }`}
           />
-          {connected ? "Skärmar kopplade" : "Återansluter…"}
+          {modelLabel}
         </span>
 
         <div className="ml-auto flex items-center gap-2">
