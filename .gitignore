@@ -36,3 +36,7 @@ dist-ssr
 *.sw?
 electron-release/
 desktop-dist/
+
+# Inbyggd talmodell för skrivbordspaketen (hämtas med scripts/fetch-model.mjs)
+desktop/public/models/
+desktop/public/ort/

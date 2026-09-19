@@ -7,7 +7,20 @@
 import { pipeline, env } from "@huggingface/transformers";
 import type { AutomaticSpeechRecognitionPipeline } from "@huggingface/transformers";
 
-env.allowLocalModels = false;
+// I skrivbordsversionen ligger modellen inbyggd i programmet, så inget
+// behöver hämtas från nätet. I webbversionen hämtas den en gång och cachas.
+const BUNDLED = import.meta.env["VITE_BUNDLED_MODEL"] === "1";
+
+if (BUNDLED) {
+  env.allowLocalModels = true;
+  env.allowRemoteModels = false;
+  env.localModelPath = `${self.location.origin}/models/`;
+  if (env.backends?.onnx?.wasm) {
+    env.backends.onnx.wasm.wasmPaths = `${self.location.origin}/ort/`;
+  }
+} else {
+  env.allowLocalModels = false;
+}
 
 const MODEL_ID = "Xenova/whisper-base";
 
