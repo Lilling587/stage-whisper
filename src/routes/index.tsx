@@ -47,7 +47,7 @@ function loadSetting(key: string): string | null {
   }
 }
 
-function Index() {
+export function Index() {
   const [room, setRoom] = useState("");
   const [role, setRole] = useState<Role | null>(null);
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);

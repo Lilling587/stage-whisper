@@ -1,4 +1,25 @@
 /**
+ * Where the transcription endpoint lives.
+ *
+ * On the web this is the same origin (empty string). The packaged desktop
+ * build runs from file:// and is compiled with VITE_APP_SERVER_URL pointing at
+ * the published site; a manual override can be stored in localStorage.
+ */
+export function getServerBaseUrl(): string {
+  let override: string | null = null;
+  try {
+    override = window.localStorage.getItem("intercomtext:server");
+  } catch {
+    override = null;
+  }
+  const base =
+    override ||
+    (import.meta.env["VITE_APP_SERVER_URL"] as string | undefined) ||
+    "";
+  return base.replace(/\/$/, "");
+}
+
+/**
  * Uploads one WAV segment to the transcribe endpoint and streams back
  * the transcript as it is recognized.
  */
@@ -10,7 +31,7 @@ export async function transcribeSegment(
   const form = new FormData();
   form.append("audio", wav, "segment.wav");
 
-  const res = await fetch("/api/public/transcribe", {
+  const res = await fetch(`${getServerBaseUrl()}/api/public/transcribe`, {
     method: "POST",
     body: form,
     signal: signal ?? null,
