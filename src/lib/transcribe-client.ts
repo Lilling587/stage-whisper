@@ -10,7 +10,7 @@ export async function transcribeSegment(
   const form = new FormData();
   form.append("audio", wav, "segment.wav");
 
-  const res = await fetch("/api/public/transcribe", {
+  const res = await fetch(`${getServerBaseUrl()}/api/public/transcribe`, {
     method: "POST",
     body: form,
     signal: signal ?? null,
