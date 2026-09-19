@@ -5,4 +5,4 @@
 - [x] Skärmvy `/`: stor text, talarfärger FOH/Scen, statusrad, helskärm, textstorlek
 - [x] Molnberoendet borttaget (ingen transkriberingsrutt, ingen delning mellan skärmar)
 - [x] Test med riktigt svenskt tal + webbläsarverifiering
-- [ ] Bygg om skrivbordspaketen med den lokala igenkänningen (görs på begäran)
+- [x] Skrivbordspaket med inbyggd talmodell — fungerar helt utan internet (Windows, Mac arm64/x64, Linux)
