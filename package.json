@@ -11,7 +11,8 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "fetch:model": "node scripts/fetch-model.mjs",
-    "build:desktop": "node scripts/fetch-model.mjs && VITE_BUNDLED_MODEL=1 vite build --config desktop/vite.config.ts"
+    "build:desktop": "node scripts/fetch-model.mjs && VITE_BUNDLED_MODEL=1 vite build --config desktop/vite.config.ts",
+    "build:installers": "npm run build:desktop && electron-builder --linux AppImage && electron-builder --mac zip --arm64 --x64 -c.mac.target=zip"
   },
   "overrides": {
     "rolldown": "1.2.1"
