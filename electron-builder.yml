@@ -1,0 +1,33 @@
+appId: se.intercomtext.app
+productName: Intercomtext
+copyright: Intercomtext
+directories:
+  output: /tmp/installers
+  buildResources: electron/build
+files:
+  - electron/**/*
+  - desktop-dist/**/*
+  - package.json
+  - "!node_modules/**/*"
+asar: true
+compression: normal
+win:
+  target:
+    - nsis
+  artifactName: Intercomtext-Windows-Setup.${ext}
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  shortcutName: Intercomtext
+mac:
+  target:
+    - dmg
+  category: public.app-category.utilities
+  artifactName: Intercomtext-Mac-${arch}.${ext}
+linux:
+  target:
+    - AppImage
+  category: AudioVideo
+  artifactName: Intercomtext-Linux.${ext}
