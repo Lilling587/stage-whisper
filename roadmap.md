@@ -6,4 +6,4 @@
 - [x] Molnberoendet borttaget (ingen transkriberingsrutt, ingen delning mellan skärmar)
 - [x] Test med riktigt svenskt tal + webbläsarverifiering
 - [x] Skrivbordspaket med inbyggd talmodell — fungerar helt utan internet (Windows, Mac arm64/x64, Linux)
-- [x] Egna paketeringsfiler: Windows-installationsprogram (.exe), Linux AppImage, Mac-zip
+- [x] Egna paketeringsfiler: Windows-installationsprogram (.exe), Linux AppImage, Mac .dmg (arm64 + x64)
