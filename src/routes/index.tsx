@@ -257,7 +257,7 @@ export function Index() {
   const start = useCallback(() => {
     if (!role) return;
     try {
-      window.localStorage.setItem("intercomtext:role", role);
+      window.localStorage.setItem("intercomtext:source", role);
       if (deviceId) window.localStorage.setItem("intercomtext:device", deviceId);
     } catch {
       // ignore
