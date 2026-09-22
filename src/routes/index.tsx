@@ -288,12 +288,22 @@ export function Index() {
     if (!role) return;
     try {
       window.localStorage.setItem("intercomtext:source", role);
-      if (deviceId) window.localStorage.setItem("intercomtext:device", deviceId);
+      if (deviceId) {
+        window.localStorage.setItem("intercomtext:device", deviceId);
+        const label = devices.find((d) => d.deviceId === deviceId)?.label;
+        if (label) {
+          window.localStorage.setItem("intercomtext:deviceLabel", label);
+        }
+      } else {
+        window.localStorage.removeItem("intercomtext:device");
+        window.localStorage.removeItem("intercomtext:deviceLabel");
+      }
     } catch {
       // ignore
     }
     setStarted(true);
-  }, [role, deviceId]);
+  }, [role, deviceId, devices]);
+
 
   // ---------- Setup screen ----------
   if (!started) {
