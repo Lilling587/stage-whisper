@@ -426,7 +426,7 @@ export function Index() {
               : "bg-cyan-400/15 text-cyan-300"
           }`}
         >
-          {role ? ROLE_LABEL[role] : ""}
+          {role ? `Visar: vad ${ROLE_LABEL[role]} säger` : ""}
         </span>
 
         {/* Level meter */}
