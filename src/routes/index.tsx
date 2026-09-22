@@ -364,7 +364,7 @@ export function Index() {
         {visible.length === 0 && (
           <p className="mb-auto mt-auto text-center text-xl text-muted-foreground">
             {listening
-              ? "Lyssnar… det som sägs i intercomen visas här."
+              ? `Lyssnar… det som sägs från ${role ? ROLE_LABEL[role] : "motparten"} visas här.`
               : "Tryck på Starta lyssning för att börja texta."}
           </p>
         )}
