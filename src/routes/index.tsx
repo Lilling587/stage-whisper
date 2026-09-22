@@ -81,21 +81,51 @@ export function Index() {
     if (savedDevice) setDeviceId(savedDevice);
   }, []);
 
-  // Enumerate audio inputs when the setup screen is shown
+  // Enumerate audio inputs, and keep the list live when hardware is
+  // plugged in or unplugged.
   useEffect(() => {
     if (started) return;
+    const media = navigator.mediaDevices;
+    if (!media) return;
     let cancelled = false;
-    navigator.mediaDevices
-      ?.enumerateDevices()
-      .then((all) => {
-        if (cancelled) return;
-        setDevices(all.filter((d) => d.kind === "audioinput"));
-      })
-      .catch(() => undefined);
+
+    const refresh = () => {
+      media
+        .enumerateDevices()
+        .then((all) => {
+          if (cancelled) return;
+          const inputs = all.filter((d) => d.kind === "audioinput");
+          setDevices(inputs);
+
+          // Re-select the previously used sound card when it is present.
+          const savedId = loadSetting("intercomtext:device");
+          const savedLabel = loadSetting("intercomtext:deviceLabel");
+          setDeviceId((current) => {
+            if (current && inputs.some((d) => d.deviceId === current)) {
+              return current;
+            }
+            const byId = savedId
+              ? inputs.find((d) => d.deviceId === savedId)
+              : undefined;
+            if (byId) return byId.deviceId;
+            const byLabel = savedLabel
+              ? inputs.find((d) => d.label && d.label === savedLabel)
+              : undefined;
+            if (byLabel) return byLabel.deviceId;
+            return current && inputs.length ? "" : current;
+          });
+        })
+        .catch(() => undefined);
+    };
+
+    refresh();
+    media.addEventListener?.("devicechange", refresh);
     return () => {
       cancelled = true;
+      media.removeEventListener?.("devicechange", refresh);
     };
   }, [started]);
+
 
   const upsertLine = useCallback((line: Line) => {
     setLines((prev) => {
