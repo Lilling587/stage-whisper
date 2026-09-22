@@ -75,7 +75,7 @@ export function Index() {
 
   // Restore previous choices after hydration
   useEffect(() => {
-    const savedRole = loadSetting("intercomtext:role");
+    const savedRole = loadSetting("intercomtext:source");
     const savedDevice = loadSetting("intercomtext:device");
     if (savedRole === "foh" || savedRole === "scen") setRole(savedRole);
     if (savedDevice) setDeviceId(savedDevice);
