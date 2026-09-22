@@ -283,15 +283,15 @@ export function Index() {
 
           <fieldset className="mt-6">
             <legend className="text-sm font-medium text-foreground">
-              Den här datorn står vid
+              Vem lyssnar den här skärmen på?
             </legend>
             <div className="mt-2 grid grid-cols-2 gap-3">
-              {(["foh", "scen"] as Role[]).map((r) => (
+              {(["scen", "foh"] as Role[]).map((r) => (
                 <button
                   key={r}
                   type="button"
                   onClick={() => setRole(r)}
-                  className={`rounded-lg border px-4 py-3 text-lg font-semibold transition-colors ${
+                  className={`rounded-lg border px-4 py-3 text-left transition-colors ${
                     role === r
                       ? r === "foh"
                         ? "border-amber-400 bg-amber-400/10 text-amber-300"
@@ -299,7 +299,14 @@ export function Index() {
                       : "border-border bg-background text-muted-foreground hover:bg-accent"
                   }`}
                 >
-                  {ROLE_LABEL[r]}
+                  <span className="block text-lg font-semibold">
+                    {ROLE_LABEL[r]}
+                  </span>
+                  <span className="mt-1 block text-xs opacity-80">
+                    {r === "scen"
+                      ? "Ljudet kommer från scenen — välj detta vid FOH"
+                      : "Ljudet kommer från FOH — välj detta på scenen"}
+                  </span>
                 </button>
               ))}
             </div>
@@ -321,8 +328,8 @@ export function Index() {
             </select>
           </label>
           <p className="mt-2 text-xs text-muted-foreground">
-            Välj den ingång där intercomljudet kommer in. Webbläsaren frågar om
-            behörighet när du startar lyssningen.
+            Välj den ingång där motpartens intercomljud kommer in. Webbläsaren
+            frågar om behörighet när du startar lyssningen.
           </p>
           <p className="mt-4 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
             Första gången hämtas talmodellen en gång (cirka 250 MB) och sparas i
