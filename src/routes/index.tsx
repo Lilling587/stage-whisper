@@ -368,8 +368,10 @@ export function Index() {
             </select>
           </label>
           <p className="mt-2 text-xs text-muted-foreground">
-            Välj den ingång där motpartens intercomljud kommer in. Webbläsaren
-            frågar om behörighet när du startar lyssningen.
+            Välj den ingång där motpartens intercomljud kommer in. Listan
+            uppdateras direkt när du kopplar in eller ur ett ljudkort, och
+            appen väljer automatiskt samma ingång som förra gången.
+
           </p>
           <p className="mt-4 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
             Första gången hämtas talmodellen en gång (cirka 250 MB) och sparas i
